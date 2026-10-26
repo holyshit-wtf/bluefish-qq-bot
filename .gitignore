@@ -1,0 +1,29 @@
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Private or internal material
+docs/
+assets/
+tools/
+
+# Runtime data and generated files
+data/*.db
+data/*.db-*
+data/*.lock
+data/backups/*.db
+logs/*.log*
+dist/
+*.zip
+
+# Python and test caches
+.pytest_cache/
+.ruff_cache/
+.testdeps/
+__pycache__/
+*.py[cod]
+.coverage
+htmlcov/
+.venv/
+

@@ -1,0 +1,10 @@
+name: bluefish-bot
+channels:
+  - https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/main
+  - https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/r
+dependencies:
+  - python=3.12.15
+  - pip=26.2.2
+  - pip:
+      - -r requirements.lock.txt
+
