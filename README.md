@@ -28,7 +28,7 @@ chat, commands, usage limits and scheduled maintenance.
 ## 快速开始
 
 ```powershell
-git clone https://github.com/<你的 GitHub 用户名>/bluefish-qq-bot.git
+git clone https://github.com/holyshit-wtf/bluefish-qq-bot.git
 Set-Location bluefish-qq-bot
 
 .\scripts\Create-Environment.ps1
