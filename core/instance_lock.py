@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import os
 from pathlib import Path
+from typing import BinaryIO
 
 
 class InstanceAlreadyRunningError(RuntimeError):
@@ -12,19 +13,30 @@ class InstanceAlreadyRunningError(RuntimeError):
 class InstanceLock:
     def __init__(self, path: Path) -> None:
         self.path = path
-        self._handle = None
+        self._handle: BinaryIO | None = None
         self._mutex_handle: int | None = None
         self._acquired = False
 
     def acquire(self) -> None:
+        if self._acquired:
+            raise InstanceAlreadyRunningError(f"当前实例已经持有锁：{self.path}")
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        if os.name == "nt":
-            self._acquire_windows_mutex()
-        else:
-            self._acquire_file_lock()
-        handle = self.path.open("wb")
-        handle.write(str(os.getpid()).encode("ascii"))
-        handle.flush()
+        handle: BinaryIO | None = None
+        try:
+            if os.name == "nt":
+                self._acquire_windows_mutex()
+                handle = self.path.open("wb")
+            else:
+                handle = self._acquire_file_lock()
+            handle.seek(0)
+            handle.truncate()
+            handle.write(str(os.getpid()).encode("ascii"))
+            handle.flush()
+        except Exception:
+            if handle is not None:
+                handle.close()
+            self._close_windows_mutex()
+            raise
         self._handle = handle
         self._acquired = True
 
@@ -54,7 +66,7 @@ class InstanceLock:
             )
         self._mutex_handle = int(handle)
 
-    def _acquire_file_lock(self) -> None:
+    def _acquire_file_lock(self) -> BinaryIO:
         handle = self.path.open("a+b")
         try:
             import fcntl
@@ -65,7 +77,20 @@ class InstanceLock:
             raise InstanceAlreadyRunningError(
                 f"已有实例正在运行，锁文件：{self.path}"
             ) from exc
-        self._handle = handle
+        return handle
+
+    def _close_windows_mutex(self) -> None:
+        if self._mutex_handle is None:
+            return
+        handle = self._mutex_handle
+        self._mutex_handle = None
+        import ctypes
+        from ctypes import wintypes
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+        kernel32.CloseHandle.restype = wintypes.BOOL
+        kernel32.CloseHandle(handle)
 
     def release(self) -> None:
         if not self._acquired:
@@ -79,15 +104,7 @@ class InstanceLock:
             if self._handle is not None:
                 self._handle.close()
                 self._handle = None
-            if self._mutex_handle is not None:
-                import ctypes
-                from ctypes import wintypes
-
-                kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-                kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
-                kernel32.CloseHandle.restype = wintypes.BOOL
-                kernel32.CloseHandle(self._mutex_handle)
-                self._mutex_handle = None
+            self._close_windows_mutex()
             try:
                 if (
                     self.path.exists()
